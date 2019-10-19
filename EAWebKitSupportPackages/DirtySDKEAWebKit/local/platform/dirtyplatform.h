@@ -49,6 +49,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define EA_PLATFORM_WINDOWS 1
 #elif defined (EA_PLATFORM_KETTLE)
 //Nothing to do here
+#elif defined(__APPLE__)
+#undef EA_PLATFORM_OSX
+#define EA_PLATFORM_OSX 1
 #endif
 
 #include <stdarg.h>

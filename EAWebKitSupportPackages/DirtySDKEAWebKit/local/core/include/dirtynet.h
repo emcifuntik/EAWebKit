@@ -50,7 +50,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Constants
 
-#if (defined(EA_PLATFORM_KETTLE) ||defined(CS_UNDEFINED_STRING))
+#if (defined(EA_PLATFORM_KETTLE) ||defined(EA_PLATFORM_OSX))
  #include <sys/socket.h>
  #include <netinet/in.h>         
  #include <arpa/inet.h>          
@@ -173,7 +173,7 @@ typedef struct SocketNameMapT
 } SocketNameMapT;
 
 
-#if !defined(_WINSOCKAPI_) && !defined(_WINSOCK2API_) && !defined(CS_UNDEFINED_STRING) && !defined(EA_PLATFORM_KETTLE)
+#if !defined(_WINSOCKAPI_) && !defined(_WINSOCK2API_) && !defined(EA_PLATFORM_OSX) && !defined(EA_PLATFORM_KETTLE)
 #define _WINSOCKAPI_
 #define _WINSOCK2API_
 

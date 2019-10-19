@@ -66,6 +66,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define POLLERR		0x0008		
 #endif
 
+#elif defined(__APPLE__)
+#include <sys/socket.h>
+typedef size_t platform_ssize_t;
 #elif defined(_WIN32) || defined(EA_PLATFORM_CAPILANO)
 	//http://msdn.microsoft.com/en-us/library/ms741394(VS.85).aspx 
 	typedef int socklen_t;

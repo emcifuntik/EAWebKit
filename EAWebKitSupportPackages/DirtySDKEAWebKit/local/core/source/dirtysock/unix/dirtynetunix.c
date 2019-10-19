@@ -43,6 +43,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "dirtyplatform.h"
 
+#if defined(EA_PLATFORM_OSX)
+#include <ifaddrs.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <net/if_dl.h>
+#endif
 
 #include "dirtysock.h"
 #include "dirtyvers.h"

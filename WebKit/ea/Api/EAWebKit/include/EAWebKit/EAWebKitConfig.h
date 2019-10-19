@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2017 Electronic Arts, Inc.  All rights reserved.
+Copyright (C) 2008, 2009, 2010, 2011, 2012, 2013, 2014 Electronic Arts, Inc.  All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -44,7 +44,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#define EAWEBKIT_VERSION_SEASON 3
 	#define EAWEBKIT_VERSION_MAJOR  1
 	#define EAWEBKIT_VERSION_MINOR  1
-	#define EAWEBKIT_VERSION_PATCH  0
+	#define EAWEBKIT_VERSION_PATCH  3
 	#define EAWEBKIT_MAKE_VERSION(Year, Season, Major, Minor, Patch) (Year * 100000000 + Season * 1000000 + Major * 10000 + Minor * 100 + Patch)
 	#define EAWEBKIT_VERSION  EAWEBKIT_MAKE_VERSION(EAWEBKIT_VERSION_YEAR,EAWEBKIT_VERSION_SEASON,EAWEBKIT_VERSION_MAJOR,EAWEBKIT_VERSION_MINOR,EAWEBKIT_VERSION_PATCH)      
 	

@@ -188,7 +188,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #ifndef PPM_THREAD_SAFETY_SUPPORTED
-    #if defined(EA_CONFIG_MULTITHREADED)  || defined(EA_PLATFORM_WINDOWS)  || defined(CS_UNDEFINED_STRING)         || defined(CS_UNDEFINED_STRING)      
+    #if defined(EA_CONFIG_MULTITHREADED)  || defined(EA_PLATFORM_WINDOWS)  || defined(EA_PLATFORM_UNIX)         || defined(CS_UNDEFINED_STRING)      
 
         #define PPM_THREAD_SAFETY_SUPPORTED 1
     #else // This value is defined as zero for any platforms where code isn't possible or isn't yet complete.
@@ -223,7 +223,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #ifndef PPM_MALLOC_AS_COREALLOC
-    #if defined(EA_PLATFORM_WINDOWS) || defined(CS_UNDEFINED_STRING) 
+    #if defined(EA_PLATFORM_WINDOWS) || defined(EA_PLATFORM_UNIX) 
         #define PPM_MALLOC_AS_COREALLOC 0
     #else // Console platforms.
         #define PPM_MALLOC_AS_COREALLOC 1
@@ -237,7 +237,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #ifndef PPM_MMAP_CLEARS
-    #if defined(CS_UNDEFINED_STRING) || defined(EA_PLATFORM_WINDOWS) 
+    #if defined(EA_PLATFORM_UNIX) || defined(EA_PLATFORM_WINDOWS) 
         #define PPM_MMAP_CLEARS 1
     #else
         #define PPM_MMAP_CLEARS 0
@@ -284,6 +284,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef PPM_NEW_CORE_SIZE_DEFAULT
     #if defined(EA_PLATFORM_WINDOWS)
         #define PPM_NEW_CORE_SIZE_DEFAULT        (16 * 1024 * 1024) // 16 Mebibytes. Same as 256 * 65536, with 65536 being default Win32 region size.
+    #elif defined(EA_PLATFORM_UNIX)
+        #define PPM_NEW_CORE_SIZE_DEFAULT        (16 * 1024 * 1024)
     #else
         #define PPM_NEW_CORE_SIZE_DEFAULT        ( 4 * 1024 * 1024)
     #endif

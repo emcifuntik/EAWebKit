@@ -110,6 +110,20 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 	// Metrowerks uses #defines in its core C header files to define 
 	// the kind of information we need below (e.g. C99 compatibility)
+	#if defined(__MWERKS__)   
+		// Defining the following causes C99 compilers to enable the macros 
+		// associated with the defines. The C99 standard specifies that you 
+		// should define these as such.
+		#ifndef __STDC_LIMIT_MACROS
+			#define __STDC_LIMIT_MACROS 1
+		#endif
+
+		#ifndef __STDC_CONSTANT_MACROS
+			#define __STDC_CONSTANT_MACROS 1
+		#endif
+
+		#include <stddef.h>
+	#endif
 
 	#if defined(__ghs) // Green Hills (EDG-based) compiler.
 		#include <stddef.h>
@@ -118,6 +132,21 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		#include <../../system/include/types.h>
 	#endif
 
+	#if defined(__SNC__) || defined(EA_PLATFORM_PS3)
+		#ifndef __STDC_LIMIT_MACROS
+			#define __STDC_LIMIT_MACROS 1
+		#endif
+
+		#ifndef __STDC_CONSTANT_MACROS
+			#define __STDC_CONSTANT_MACROS 1
+		#endif
+
+		#include <stdint.h>
+
+		#if !defined(EA_COMPILER_HAS_INTTYPES)
+			#define EA_COMPILER_HAS_INTTYPES 1
+		#endif
+	#endif
 
 	// Determine if this compiler is ANSI C compliant and if it is C99 compliant.
 	#if defined(__STDC__)
@@ -343,9 +372,15 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//    typedef EA_ALIGNED(X, X16, 16); X16 x16;                      typedef X X16; X16 x16;         Define X16 as an X which is aligned on 16.
 
 	#if !defined(EA_ALIGN_MAX)          // If the user hasn't globally set an alternative value...
-		#if   defined(EA_PLATFORM_APPLE)
+		#if defined(EA_PROCESSOR_ARM)                       // ARM compilers in general tend to limit automatic variables to 8 or less.
+			#define EA_ALIGN_MAX_STATIC    1048576
+			#define EA_ALIGN_MAX_AUTOMATIC       1          // Typically they support only built-in natural aligment types (both arm-eabi and apple-abi).
+		#elif defined(EA_PLATFORM_APPLE)
 			#define EA_ALIGN_MAX_STATIC    1048576
 			#define EA_ALIGN_MAX_AUTOMATIC      16
+		#elif defined(EA_PLATFORM_XENON) 
+			#define EA_ALIGN_MAX_STATIC    1048576
+			#define EA_ALIGN_MAX_AUTOMATIC       1          // It supports only built-in natural aligment types.
 		#else
 			#define EA_ALIGN_MAX_STATIC    1048576          // Arbitrarily high value. What is the actual max?
 			#define EA_ALIGN_MAX_AUTOMATIC 1048576
@@ -357,7 +392,16 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	// using postfix alignment attributes. Prefix works for alignment, but does not align
 	// the size like postfix does.  Prefix also fails on templates.  So gcc style post fix
 	// is still used, but the user will need to use EA_POSTFIX_ALIGN before the constructor parameters.
-	#if   defined(__GNUC__) && (__GNUC__ < 3)
+	#if defined(EA_COMPILER_SN)
+		#define EA_ALIGN_OF(type) ((size_t)__alignof__(type))
+		#define EA_ALIGN(n) __attribute__((aligned(n)))
+		#define EA_PREFIX_ALIGN(n) 
+		#define EA_POSTFIX_ALIGN(n) __attribute__((aligned(n)))
+		#define EA_ALIGNED(variable_type, variable, n) variable_type variable __attribute__((aligned(n)))
+		#define EA_PACKED __attribute__((packed))
+
+	// GCC 2.x doesn't support prefix attributes.
+	#elif defined(__GNUC__) && (__GNUC__ < 3)
 		#define EA_ALIGN_OF(type) ((size_t)__alignof__(type))
 		#define EA_ALIGN(n)
 		#define EA_PREFIX_ALIGN(n)
@@ -376,7 +420,18 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 	// Metrowerks supports prefix attributes.
 	// Metrowerks does not support packed alignment attributes.
-	#elif defined(EA_COMPILER_INTEL) || defined(CS_UNDEFINED_STRING) || (defined(EA_COMPILER_MSVC) && (EA_COMPILER_VERSION >= 1300))
+	#elif defined(EA_COMPILER_METROWERKS)
+		#define EA_ALIGN_OF(type) ((size_t)__alignof__(type))
+		#define EA_ALIGN(n) __attribute__((aligned(n)))
+		#define EA_PREFIX_ALIGN(n)
+		#define EA_POSTFIX_ALIGN(n) __attribute__((aligned(n)))
+		#define EA_ALIGNED(variable_type, variable, n) variable_type variable __attribute__((aligned(n)))
+		#define EA_PACKED
+
+	// Microsoft supports prefix alignment via __declspec, but the alignment value must be a literal number, not just a constant expression.
+	// Contrary to VC7.x and earlier documentation, __declspec(align) works on stack variables. VC8+ (VS2005+) documents correctly.
+	// Microsoft does not support packed alignment attributes; you must use #pragma pack (or the EA_PRAGMA_PACK_VC wrapper).
+	#elif defined(EA_COMPILER_INTEL) || defined(EA_PLATFORM_XBOX) || (defined(EA_COMPILER_MSVC) && (EA_COMPILER_VERSION >= 1300))
 		#define EA_ALIGN_OF(type) ((size_t)__alignof(type))
 		#define EA_ALIGN(n) __declspec(align(n))
 		#define EA_PREFIX_ALIGN(n) EA_ALIGN(n)
@@ -464,7 +519,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//       { ... }
 	//
 	#ifndef EA_LIKELY
-		#if (defined(__GNUC__) && (__GNUC__ >= 3)) || defined(CS_UNDEFINED_STRING) || defined(CS_UNDEFINED_STRING) // Metrowerks supports __builtin_expect, but with some platforms (e.g. Wii) it appears to ignore it.
+		#if (defined(__GNUC__) && (__GNUC__ >= 3)) || defined(__MWERKS__) || defined(__SNC__) // Metrowerks supports __builtin_expect, but with some platforms (e.g. Wii) it appears to ignore it.
 			#if defined(__cplusplus)
 				#define EA_LIKELY(x)   __builtin_expect(!!(x), true)
 				#define EA_UNLIKELY(x) __builtin_expect(!!(x), false) 
@@ -486,7 +541,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	// Defines if the GCC attribute init_priority is supported by the compiler.
 	//
 	#if !defined(EA_INIT_PRIORITY_AVAILABLE)
-		#if   defined(__GNUC__) && !defined(__EDG__) // EDG typically #defines __GNUC__ but doesn't implement init_priority.
+		#if defined(__SNC__)
+			#define EA_INIT_PRIORITY_AVAILABLE 1 
+		#elif defined(__GNUC__) && !defined(__EDG__) // EDG typically #defines __GNUC__ but doesn't implement init_priority.
 			#define EA_INIT_PRIORITY_AVAILABLE 1 
 		#endif
 	#endif
@@ -521,7 +578,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//
 	#ifndef EA_MAY_ALIAS_AVAILABLE
 		#if defined(__GNUC__) && (((__GNUC__ * 100) + __GNUC_MINOR__) >= 303)
-			#if   !defined(__EDG__)                 // define it as 1 while defining GCC's support as 2.
+			#if defined(__SNC__)                    // EDG typically #defines __GNUC__ but doesn't implement may_alias. Except some variants 
+				#define EA_MAY_ALIAS_AVAILABLE 1    // of EDG (e.g. SN) do implement it anyway. SN's version of it is slightly crippled, so we 
+			#elif !defined(__EDG__)                 // define it as 1 while defining GCC's support as 2.
 				#define EA_MAY_ALIAS_AVAILABLE 2
 			#else
 				#define EA_MAY_ALIAS_AVAILABLE 0    
@@ -779,11 +838,25 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//     EA_RESTORE_SN_WARNING()
 	//
 	#ifndef EA_DISABLE_SN_WARNING
+		#if defined(EA_COMPILER_SN)
+			#define EASNWHELP0(x) #x
+			#define EASNWHELP1(x) EASNWHELP0(diag_suppress x)
+
+			#define EA_DISABLE_SN_WARNING(w)   \
+				_Pragma("control %push diag")  \
+				_Pragma(EASNWHELP1(w))
+		#else
 			#define EA_DISABLE_SN_WARNING(w)
+		#endif
 	#endif
 
 	#ifndef EA_RESTORE_SN_WARNING
+		#if defined(EA_COMPILER_SN)
+			#define EA_RESTORE_SN_WARNING()   \
+				_Pragma("control %pop diag")
+		#else
 			#define EA_RESTORE_SN_WARNING()
+		#endif
 	#endif
 
 
@@ -796,11 +869,22 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//     EA_RESTORE_ALL_SN_WARNINGS()
 	//
 	#ifndef EA_DISABLE_ALL_SN_WARNINGS
+		#if defined(EA_COMPILER_SN)
+			#define EA_DISABLE_ALL_SN_WARNINGS() \
+				_Pragma("control %push diag")    \
+				_Pragma("control diag=0")
+		#else
 			#define EA_DISABLE_ALL_SN_WARNINGS()
+		#endif
 	#endif
 
 	#ifndef EA_RESTORE_ALL_SN_WARNINGS
+		#if defined(EA_COMPILER_SN)
+			#define EA_RESTORE_ALL_SN_WARNINGS()   \
+				_Pragma("control %pop diag")
+		#else
 			#define EA_RESTORE_ALL_SN_WARNINGS()
+		#endif
 	#endif
 
 
@@ -818,11 +902,24 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//     EA_RESTORE_GHS_WARNING()
 	//
 	#ifndef EA_DISABLE_GHS_WARNING
+		#if defined(EA_COMPILER_GREEN_HILLS)
+			#define EAGHSHELP0(x) #x
+			#define EAGHSHELP1(x) EAGHSHELP0(ghs nowarning x)
+
+			#define EA_DISABLE_GHS_WARNING(w)   \
+				_Pragma(EAGHSHELP1(w))
+		#else
 			#define EA_DISABLE_GHS_WARNING(w)
+		#endif
 	#endif
 
 	#ifndef EA_RESTORE_GHS_WARNING
+		#if defined(EA_COMPILER_GREEN_HILLS)
+			#define EA_RESTORE_GHS_WARNING()   \
+				_Pragma("ghs endnowarning")
+		#else
 			#define EA_RESTORE_GHS_WARNING()
+		#endif
 	#endif
 
 
@@ -862,7 +959,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//
 	#ifndef EA_DISABLE_EDG_WARNING
 		// EDG-based compilers are inconsistent in how the implement warning pragmas.
-		#if defined(EA_COMPILER_EDG) && !defined(CS_UNDEFINED_STRING) && !defined(EA_COMPILER_INTEL) && !defined(CS_UNDEFINED_STRING) && !defined(EA_COMPILER_RVCT)
+		#if defined(EA_COMPILER_EDG) && !defined(EA_COMPILER_SN) && !defined(EA_COMPILER_INTEL) && !defined(EA_COMPILER_GREEN_HILLS) && !defined(EA_COMPILER_RVCT)
 			#define EAEDGWHELP0(x) #x
 			#define EAEDGWHELP1(x) EAEDGWHELP0(diag_suppress x)
 
@@ -875,7 +972,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#endif
 
 	#ifndef EA_RESTORE_EDG_WARNING
-		#if defined(EA_COMPILER_EDG) && !defined(CS_UNDEFINED_STRING) && !defined(EA_COMPILER_INTEL) && !defined(CS_UNDEFINED_STRING) && !defined(EA_COMPILER_RVCT)
+		#if defined(EA_COMPILER_EDG) && !defined(EA_COMPILER_SN) && !defined(EA_COMPILER_INTEL) && !defined(EA_COMPILER_GREEN_HILLS) && !defined(EA_COMPILER_RVCT)
 			#define EA_RESTORE_EDG_WARNING()   \
 				_Pragma("control %pop diag")
 		#else
@@ -923,11 +1020,26 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//     EA_RESTORE_CW_WARNING(10324)
 	//
 	#ifndef EA_DISABLE_CW_WARNING
+		#if defined(__MWERKS__) && (__MWERKS__ >= 999999) // Does any version of CodeWarrior support __pragma?
+			#define EACWWHELP0(x) #x
+			#define EACWWHELP1(x) EACWWHELP0(warning off x)
+
+			#define EA_DISABLE_CW_WARNING(w)   \
+				_Pragma(EACWWHELP1(w))
+		#else
 			#define EA_DISABLE_CW_WARNING(w)
+		#endif
 	#endif
 
 	#ifndef EA_RESTORE_CW_WARNING
+		#if defined(__MWERKS__) && (__MWERKS__ >= 999999)
+			#define EACWWHELP2(x) EACWWHELP2(warning restore x)
+
+			#define EA_RESTORE_CW_WARNING(w)   \
+				_Pragma(EACWWHELP2(w))
+		#else
 			#define EA_RESTORE_CW_WARNING(w)
+		#endif
 	#endif
 
 
@@ -935,11 +1047,21 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	// EA_DISABLE_ALL_CW_WARNINGS / EA_RESTORE_ALL_CW_WARNINGS
 	//
 	#ifndef EA_DISABLE_ALL_CW_WARNINGS
+		#if defined(__MWERKS__) && (__MWERKS__ >= 999999) // Does any version of CodeWarrior support __pragma?
+			#define EA_DISABLE_ALL_CW_WARNINGS()  \
+				_Pragma("warning off")
+		#else
 			#define EA_DISABLE_ALL_CW_WARNINGS()
+		#endif
 	#endif
 	
 	#ifndef EA_RESTORE_ALL_CW_WARNINGS
+		#if defined(__MWERKS__) && (__MWERKS__ >= 999999)
+			#define EA_RESTORE_ALL_CW_WARNINGS()   \
+				_Pragma("warning on")
+		#else
 			#define EA_RESTORE_ALL_CW_WARNINGS()
+		#endif
 	#endif
 
 
@@ -1028,7 +1150,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		// The EDG solution below is pretty weak and needs to be augmented or replaced.
 		// It can't handle the C language, is limited to places where template declarations
 		// can be used, and requires the type x to be usable as a functions reference argument. 
-		#if defined(__cplusplus) && defined(__EDG__) && !defined(CS_UNDEFINED_STRING) && !defined(CS_UNDEFINED_STRING) // All EDG variants except the SN PS3 variant which allows usage of (void)x;
+		#if defined(__cplusplus) && defined(__EDG__) && !defined(__PPU__) && !defined(__SPU__) // All EDG variants except the SN PS3 variant which allows usage of (void)x;
 			template <typename T>
 			inline void EABaseUnused(T const volatile & x) { (void)x; }
 			#define EA_UNUSED(x) EABaseUnused(x)
@@ -1082,6 +1204,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			#ifndef _NATIVE_WCHAR_T_DEFINED
 				#define EA_WCHAR_T_NON_NATIVE 1
 			#endif
+		#elif defined(EA_COMPILER_METROWERKS)
+			#if !__option(wchar_type)
+				#define EA_WCHAR_T_NON_NATIVE 1
+			#endif
+		#elif defined(__SNC__) && !defined(__cplusplus) // If compiling C under SNC...
+			#define EA_WCHAR_T_NON_NATIVE 1
 		#elif defined(__EDG_VERSION__) && (!defined(_WCHAR_T) && (__EDG_VERSION__ < 400)) // EDG prior to v4 uses _WCHAR_T to indicate if wchar_t is native. v4+ may define something else, but we're not currently aware of it.
 			#define EA_WCHAR_T_NON_NATIVE 1
 		#endif
@@ -1128,6 +1256,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			#else
 				#define EA_WCHAR_SIZE 4
 			#endif
+		#elif defined(EA_PLATFORM_UNIX) || defined(EA_PLATFORM_PS3) || defined(EA_PLATFORM_PS3_SPU)
+			// It is standard on Unix to have wchar_t be int32_t or uint32_t.
+			// All versions of GNUC default to a 32 bit wchar_t, but EA has used 
+			// the -fshort-wchar GCC command line option to force it to 16 bit.
+			// If you know that the compiler is set to use a wchar_t of other than 
+			// the default, you need to manually define EA_WCHAR_SIZE for the build.
+			#define EA_WCHAR_SIZE 4
 		#else
 			// It is standard on Windows and XBox to have wchar_t be uint16_t.
 			// For PlayStation, GCC defines wchar_t as int by 
@@ -1163,6 +1298,14 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		#elif defined(EA_COMPILER_GNUC)     // Includes GCC and other compilers (e.g. SN) emulating GCC.
 			#define EA_RESTRICT __restrict  // GCC defines 'restrict' (as opposed to __restrict) in C99 mode only.
 		#elif defined(EA_COMPILER_ARM)
+			#define EA_RESTRICT __restrict
+		#elif defined(__MWERKS__)
+			#if __option(c99)
+				#define EA_RESTRICT restrict
+			#else
+				#define EA_RESTRICT
+			#endif
+		#elif defined(EA_COMPILER_SN)
 			#define EA_RESTRICT __restrict
 		#elif defined(EA_COMPILER_IS_C99)
 			#define EA_RESTRICT restrict
@@ -1249,7 +1392,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		#endif
 	#endif
 
-	#if   defined(EA_COMPILER_GNUC) && (((__GNUC__ * 100) + __GNUC_MINOR__) >= 301) || defined(EA_COMPILER_CLANG)
+	#if defined(EA_COMPILER_SN) && defined(EA_PLATFORM_PS3) // SN's implementation of always_inline is broken and sometimes fails to link the function.
+		#define EA_PREFIX_FORCE_INLINE  inline
+		#define EA_POSTFIX_FORCE_INLINE 
+	#elif defined(EA_COMPILER_GNUC) && (((__GNUC__ * 100) + __GNUC_MINOR__) >= 301) || defined(EA_COMPILER_CLANG)
 		#define EA_PREFIX_FORCE_INLINE  inline
 		#define EA_POSTFIX_FORCE_INLINE __attribute__((always_inline))
 	#else
@@ -1346,6 +1492,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			#define EA_PASCAL __stdcall
 		#elif defined(EA_COMPILER_GNUC) && defined(EA_PROCESSOR_X86)
 			#define EA_PASCAL __attribute__((stdcall))
+		#elif defined(EA_COMPILER_METROWERKS) && defined(EA_PLATFORM_WINDOWS)
+			// You need to make sure you have the Metrowerks "ANSI keywords only' 
+			// compilation option disabled for the pascal keyword to work.
+			#define EA_PASCAL   pascal
 		#else
 			// Some compilers simply don't support pascal calling convention.
 			// As a result, there isn't an issue here, since the specification of 
@@ -1360,6 +1510,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			#define EA_PASCAL_FUNC(funcname_and_paramlist)    __stdcall funcname_and_paramlist
 		#elif defined(EA_COMPILER_GNUC) && defined(EA_PROCESSOR_X86)
 			#define EA_PASCAL_FUNC(funcname_and_paramlist)    __attribute__((stdcall)) funcname_and_paramlist
+		#elif defined(EA_COMPILER_METROWERKS) && defined(EA_PLATFORM_WINDOWS)
+			#define EA_PASCAL_FUNC(funcname_and_paramlist)    pascal funcname_and_paramlist
 		#else
 			#define EA_PASCAL_FUNC(funcname_and_paramlist)    funcname_and_paramlist
 		#endif
@@ -1531,7 +1683,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//
 	//    #endif
 	//
-	#if defined(_MSC_VER) || defined(CS_UNDEFINED_STRING) || defined(__GNUC__) || defined(__EDG__) || defined(CS_UNDEFINED_STRING)
+	#if defined(_MSC_VER) || defined(__MWERKS__) || defined(__GNUC__) || defined(__EDG__) || defined(__APPLE__)
 		#define EA_PRAGMA_ONCE_SUPPORTED 1
 	#endif
 
@@ -1907,15 +2059,25 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	//     EA_OPTIMIZE_ON()
 	//
 	#if !defined(EA_OPTIMIZE_OFF)
-		#if   defined(EA_COMPILER_MSVC)
+		#if defined(EA_PLATFORM_PS3) && defined(EA_COMPILER_SN)
+			#define EA_OPTIMIZE_OFF() _Pragma("control %push O=0");
+		#elif defined(EA_COMPILER_MSVC)
 			#define EA_OPTIMIZE_OFF() __pragma(optimize("", off))
+		#elif defined(EA_COMPILER_METROWERKS)
+			#define EA_OPTIMIZE_OFF()            \
+				_Pragma("push")                  \
+				_Pragma("dont_inline on")        \
+				_Pragma("inline_bottom_up on")   \
+				_Pragma("optimization_level 0")  \
+				_Pragma("global_optimizer off")
+			  //_Pragma("ipa off")              // Can't use this because you typically get: "error (10506) cannot use #pragma ipa after declarations have begun"
 		#elif defined(__ghs)
 			#define EA_OPTIMIZE_OFF() _Pragma("ghs ZO")
 		#elif defined(EA_COMPILER_GNUC) && (EA_COMPILER_VERSION > 4004) && (defined(__i386__) || defined(__x86_64__)) // GCC 4.4+ - Seems to work only on x86/Linux so far. However, GCC 4.4 itself appears broken and screws up parameter passing conventions.
 			#define EA_OPTIMIZE_OFF()            \
 				_Pragma("GCC push_options")      \
 				_Pragma("GCC optimize 0")
-        #elif defined(EA_COMPILER_CLANG) &&  !defined(CS_UNDEFINED_STRING) // android clang 305 compiler crashes when this pragma is used
+        #elif defined(EA_COMPILER_CLANG) &&  !defined(EA_PLATFORM_ANDROID) // android clang 305 compiler crashes when this pragma is used
             #define EA_OPTIMIZE_OFF() \
 				EA_DISABLE_CLANG_WARNING(-Wunknown-pragmas) \
 				_Pragma("clang optimize off") \
@@ -1926,13 +2088,17 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#endif
 
 	#if !defined(EA_OPTIMIZE_ON)
-		#if   defined(EA_COMPILER_MSVC)
+		#if defined(EA_PLATFORM_PS3) && defined(EA_COMPILER_SN)
+			#define EA_OPTIMIZE_ON() _Pragma("control %pop O=0");
+		#elif defined(EA_COMPILER_MSVC)
 			#define EA_OPTIMIZE_ON() __pragma(optimize("", on))
+		#elif defined(EA_COMPILER_METROWERKS)
+			#define EA_OPTIMIZE_ON() _Pragma("pop")
 		#elif defined(__ghs)
 			#define EA_OPTIMIZE_ON() _Pragma("ghs revertoptions")
 		#elif defined(EA_COMPILER_GNUC) && (EA_COMPILER_VERSION > 4004) && (defined(__i386__) || defined(__x86_64__)) // GCC 4.4+ - Seems to work only on x86/Linux so far. However, GCC 4.4 itself appears broken and screws up parameter passing conventions.
 			#define EA_OPTIMIZE_ON() _Pragma("GCC pop_options")
-        #elif defined(EA_COMPILER_CLANG) && !defined(CS_UNDEFINED_STRING) // android clang 305 compiler crashes when this pragma is used
+        #elif defined(EA_COMPILER_CLANG) && !defined(EA_PLATFORM_ANDROID) // android clang 305 compiler crashes when this pragma is used
             #define EA_OPTIMIZE_ON() \
 				EA_DISABLE_CLANG_WARNING(-Wunknown-pragmas) \
 				_Pragma("clang optimize on") \

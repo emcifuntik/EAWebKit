@@ -51,7 +51,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // not standards-compliant in this respect, so we need an additional include.
 // The case is similar with wchar_t under C++.
 
-#if defined(EA_COMPILER_GNUC) || defined(EA_COMPILER_MSVC) || defined(EA_WCHAR_T_NON_NATIVE) || defined(CS_UNDEFINED_STRING) || defined(EA_PLATFORM_KETTLE)
+#if defined(EA_COMPILER_GNUC) || defined(EA_COMPILER_MSVC) || defined(EA_WCHAR_T_NON_NATIVE) || defined(EA_COMPILER_SN) || defined(EA_PLATFORM_KETTLE)
 	#if defined(EA_COMPILER_MSVC)
 		#pragma warning(push, 0)
 		#pragma warning(disable: 4265 4365 4836 4574)
@@ -136,7 +136,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#endif
 	// The GCC PSP compiler defines standard int types (e.g. uint32_t) but not PRId8, etc.
 	// MSVC doesn't include an inttypes.h header.
-	#if !defined(CS_UNDEFINED_STRING) && !defined(EA_COMPILER_MSVC)
+	#if !defined(__psp__) && !defined(EA_COMPILER_MSVC)
 		#include <inttypes.h> // PRId8, SCNd8, etc.
 	#endif
 	#if defined(_MSC_VER)
@@ -160,12 +160,16 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	// The QNX gcc-based toolchain for the Playbook doesn't define std::uint32_t to be the same type as unsigned long int, for some obscure reason.
 	// So, this causes ambigous overload problems when trying to initialize RWMatch types using the UINT32_C macro, which just appends UL to the integer.
 	// Wrapping this in an explicit typecast solves the problem without introducing any noticable side-effects.
+	#if defined(__QNX__)
+		#undef UINT32_C
+		#define UINT32_C(x) (uint32_t)(x ## UL)
+	#endif
 
 	// MinGW GCC (up to at least v4.3.0-20080502) mistakenly neglects to define float_t and double_t.
 	// This appears to be an acknowledged bug as of March 2008 and is scheduled to be fixed.
 	// Similarly, Android uses a mix of custom standard library headers which prior to SDK API level 21
 	// don't define float_t and double_t.
-	#if defined(__MINGW32__) || (defined(CS_UNDEFINED_STRING) && !(defined(EA_ANDROID_SDK_LEVEL) && EA_ANDROID_SDK_LEVEL >= 21))
+	#if defined(__MINGW32__) || (defined(EA_PLATFORM_ANDROID) && !(defined(EA_ANDROID_SDK_LEVEL) && EA_ANDROID_SDK_LEVEL >= 21))
 		#if defined(__FLT_EVAL_METHOD__)  
 			#if(__FLT_EVAL_METHOD__== 0)
 				typedef float float_t;
@@ -228,7 +232,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 	// According to the C98/99 standard, FLT_EVAL_METHOD defines control the 
 	// width used for floating point _t types.
-	#if   defined(_MSC_VER) && _MSC_VER >= 1800
+	#if defined(__MWERKS__) && ((defined(_MSL_C99) && (_MSL_C99 == 1)) || (__MWERKS__ < 0x4000))
+		// The CodeWarrior compiler defines float_t, double_t, and __FLT_EVAL_METHOD under this condition.
+	#elif defined(_MSC_VER) && _MSC_VER >= 1800
 		// MSVC's math.h provides float_t, double_t under this condition.
 	#elif defined(__ghs)
 		// The Green Hills compiler always defines float_t, double_t, and __FLT_EVAL_METHOD.
@@ -246,7 +252,16 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		#endif
 	#endif
 	
-   #if   defined(EA_COMPILER_MSVC) || defined(EA_COMPILER_BORLAND)
+   #if defined(EA_PLATFORM_SUN) || defined(EA_PLATFORM_SGI)
+	   #if (EA_PLATFORM_PTR_SIZE == 4)
+		   typedef signed long long    int64_t;
+		   typedef unsigned long long  uint64_t;
+	   #else
+		   typedef signed long         int64_t;
+		   typedef unsigned long       uint64_t;
+	   #endif
+
+   #elif defined(EA_COMPILER_MSVC) || defined(EA_COMPILER_BORLAND)
 	   typedef signed __int64      int64_t;
 	   typedef unsigned __int64    uint64_t;
 
@@ -314,12 +329,21 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		#ifndef UINT16_C
 			#define UINT16_C(x)  uint16_t(x)     // Possibly we should make this be uint16_t(x##u). Let's see how compilers react before changing this.
 		#endif
+			#if defined(EA_PLATFORM_PS3)         // PS3 defines long as 64 bit, so we cannot use any size suffix.
+				#ifndef INT32_C
+					#define  INT32_C(x)  int32_t(x)
+				#endif
+				#ifndef UINT32_C
+					#define UINT32_C(x)  uint32_t(x)
+				#endif
+			#else                                // Else we are working on a platform whereby sizeof(long) == sizeof(int32_t).
 				#ifndef INT32_C
 				   #define  INT32_C(x)  x##L
 				#endif
 				#ifndef UINT32_C
 				   #define UINT32_C(x)  x##UL
 				#endif
+			#endif
 		#ifndef INT64_C
 			#define  INT64_C(x)  x##LL         // The way to deal with this is to compare ULONG_MAX to 0xffffffff and if not equal, then remove the L.
 		#endif
@@ -419,7 +443,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#endif // It turns out that some platforms use %q to represent a 64 bit value, but these are not relevant to us at this time.
 
 	// Printf format specifiers
-	#if defined(EA_COMPILER_IS_C99) || defined(EA_COMPILER_GNUC) || defined(CS_UNDEFINED_STRING) // || defined(EA_COMPILER_INTEL) ?
+	#if defined(EA_COMPILER_IS_C99) || defined(EA_COMPILER_GNUC) || defined(EA_COMPILER_METROWERKS) // || defined(EA_COMPILER_INTEL) ?
 		#define PRId8     "hhd"
 		#define PRIi8     "hhi"
 		#define PRIo8     "hho"
@@ -473,7 +497,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#endif
 
 	// Scanf format specifiers
-	#if defined(EA_COMPILER_IS_C99) || defined(EA_COMPILER_GNUC) || defined(CS_UNDEFINED_STRING) // || defined(EA_COMPILER_INTEL) ?
+	#if defined(EA_COMPILER_IS_C99) || defined(EA_COMPILER_GNUC) || defined(EA_COMPILER_METROWERKS) // || defined(EA_COMPILER_INTEL) ?
 		#define SCNd8     "hhd"
 		#define SCNi8     "hhi"
 		#define SCNo8     "hho"
@@ -528,7 +552,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
 #ifndef BOOL8_T_DEFINED // If the user hasn't already defined this...
 	#define BOOL8_T_DEFINED
-	#if defined(EA_COMPILER_MSVC) || defined(CS_UNDEFINED_STRING) || (defined(EA_COMPILER_INTEL) && defined(EA_PLATFORM_WINDOWS)) || defined(EA_COMPILER_BORLAND)
+	#if defined(EA_COMPILER_MSVC) || defined(EA_COMPILER_METROWERKS) || (defined(EA_COMPILER_INTEL) && defined(EA_PLATFORM_WINDOWS)) || defined(EA_COMPILER_BORLAND)
 		#if defined(__cplusplus)
 			typedef bool bool8_t;
 		#else
@@ -599,7 +623,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#else
 		typedef long ssize_t;
 	#endif
-#else
+#elif !defined(EA_PLATFORM_NINTENDO)
 	#include <sys/types.h>
 #endif
 
@@ -675,7 +699,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#elif defined(EA_COMPILER_CLANG) && defined(EA_COMPILER_CPP11_ENABLED)
 		#if __has_feature(cxx_unicode_literals)
 			#define EA_CHAR16_NATIVE 1
-		#elif (EA_COMPILER_VERSION >= 300) && !(defined(CS_UNDEFINED_STRING) || defined(CS_UNDEFINED_STRING))
+		#elif (EA_COMPILER_VERSION >= 300) && !(defined(EA_PLATFORM_IPHONE) || defined(EA_PLATFORM_OSX))
 			#define EA_CHAR16_NATIVE 1
 		#elif defined(EA_PLATFORM_APPLE)
 			#define EA_CHAR16_NATIVE 1 
@@ -685,6 +709,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#elif defined(__EDG_VERSION__) && (__EDG_VERSION__ >= 404) && defined(__CHAR16_TYPE__) && defined(EA_COMPILER_CPP11_ENABLED)// EDG 4.4+.
 		#define EA_CHAR16_NATIVE 1
 	#elif defined(EA_COMPILER_GNUC) && (EA_COMPILER_VERSION >= 4004) && !defined(EA_COMPILER_EDG) && (defined(EA_COMPILER_CPP11_ENABLED) || defined(__STDC_VERSION__)) // g++ (C++ compiler) 4.4+ with -std=c++0x or gcc (C compiler) 4.4+ with -std=gnu99
+		#define EA_CHAR16_NATIVE 1
+	#elif defined(EA_COMPILER_SN) && (__EDG_VERSION__ >=  408) && defined(EA_COMPILER_CPP11_ENABLED)
 		#define EA_CHAR16_NATIVE 1
 	#else
 		#define EA_CHAR16_NATIVE 0
@@ -698,7 +724,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#elif defined(EA_COMPILER_CLANG) && defined(EA_COMPILER_CPP11_ENABLED)
 		#if __has_feature(cxx_unicode_literals)
 			#define EA_CHAR32_NATIVE 1
-		#elif (EA_COMPILER_VERSION >= 300) && !(defined(CS_UNDEFINED_STRING) || defined(CS_UNDEFINED_STRING))
+		#elif (EA_COMPILER_VERSION >= 300) && !(defined(EA_PLATFORM_IPHONE) || defined(EA_PLATFORM_OSX))
 			#define EA_CHAR32_NATIVE 1
 		#elif defined(EA_PLATFORM_APPLE)
 			#define EA_CHAR32_NATIVE 1 
@@ -708,6 +734,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	#elif defined(__EDG_VERSION__) && (__EDG_VERSION__ >= 404) && defined(__CHAR32_TYPE__) && defined(EA_COMPILER_CPP11_ENABLED)// EDG 4.4+.
 		#define EA_CHAR32_NATIVE 1
 	#elif defined(EA_COMPILER_GNUC) && (EA_COMPILER_VERSION >= 4004) && !defined(EA_COMPILER_EDG) && (defined(EA_COMPILER_CPP11_ENABLED) || defined(__STDC_VERSION__)) // g++ (C++ compiler) 4.4+ with -std=c++0x or gcc (C compiler) 4.4+ with -std=gnu99
+		#define EA_CHAR32_NATIVE 1
+#elif defined(EA_COMPILER_SN) && (__EDG_VERSION__ >=  408) && defined(EA_COMPILER_CPP11_ENABLED)
 		#define EA_CHAR32_NATIVE 1
 	#else
 		#define EA_CHAR32_NATIVE 0
@@ -739,7 +767,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			typedef __CHAR32_TYPE__ char32_t;
 		#endif
 	#elif (EA_WCHAR_SIZE == 2)
-		#if (defined(_MSC_VER) && (_MSC_VER >= 1600)) || defined(CS_UNDEFINED_STRING) // if VS2010+ or using platforms that use Dinkumware under a compiler that doesn't natively support C++11 char16_t.
+		#if (defined(_MSC_VER) && (_MSC_VER >= 1600)) || defined(EA_PLATFORM_PSP2) // if VS2010+ or using platforms that use Dinkumware under a compiler that doesn't natively support C++11 char16_t.
 			#if !defined(_CHAR16T)
 				#define _CHAR16T
 			#endif

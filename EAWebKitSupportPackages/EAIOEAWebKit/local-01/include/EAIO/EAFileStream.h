@@ -195,6 +195,8 @@ namespace EA
 #if defined(EA_PLATFORM_WINDOWS)
    #include <EAIO/Win32/EAFileStreamWin32.h>
 
+#elif defined(EA_PLATFORM_UNIX) 
+   #include <EAIO/Unix/EAFileStreamUnix.h>
 #else
    #include <EAIO/StdC/EAFileStreamStdC.h>
 #endif
